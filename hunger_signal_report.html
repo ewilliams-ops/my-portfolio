@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HS Trade Hunger Integration Signal Analysis - Sandbox</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --ink:       #111827;
+    --muted:     #6b7280;
+    --light:     #f3f4f6;
+    --border:    #e5e7eb;
+    --critical:  #dc2626;
+    --high:      #ea580c;
+    --medium:    #d97706;
+    --low:       #16a34a;
+    --accent:    #2563eb;
+    --core-bg:   #eff6ff;
+    --core-fg:   #1d4ed8;
+    --gap-bg:    #fef2f2;
+    --gap-fg:    #dc2626;
+    --find-bg:   #f0f9ff;
+    --find-fg:   #0369a1;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #fff;
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Page layout ── */
+  .page { max-width: 900px; margin: 0 auto; padding: 64px 48px; }
+
+  /* ── Cover ── */
+  .cover { border-bottom: 3px solid var(--ink); padding-bottom: 36px; margin-bottom: 48px; }
+  .cover .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .cover h1 { font-size: 32px; font-weight: 700; color: var(--ink); line-height: 1.2; margin-bottom: 10px; }
+  .cover .subtitle { font-size: 16px; color: var(--muted); margin-bottom: 28px; }
+  .cover-meta { display: flex; gap: 32px; flex-wrap: wrap; }
+  .cover-meta .item { }
+  .cover-meta .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .cover-meta .value { font-size: 14px; font-weight: 500; color: var(--ink); }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 52px; }
+  .section-num { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .section-title { font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .section-title + p { margin-top: 14px; }
+  p { margin-bottom: 12px; color: var(--ink); }
+
+  /* ── KPI strip ── */
+  .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 24px 0; }
+  .kpi-cell { background: #fff; padding: 20px 18px; text-align: center; }
+  .kpi-cell .num { font-size: 30px; font-weight: 700; color: var(--ink); line-height: 1; margin-bottom: 5px; }
+  .kpi-cell .lbl { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .kpi-cell .num.accent  { color: var(--accent); }
+  .kpi-cell .num.danger  { color: var(--critical); }
+  .kpi-cell .num.warn    { color: var(--high); }
+  .kpi-cell .num.ok      { color: var(--low); }
+
+  /* ── Finding callout ── */
+  .finding { background: var(--find-bg); border-left: 4px solid var(--find-fg); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 20px 0; }
+  .finding p { margin: 0; color: var(--find-fg); font-size: 13.5px; }
+  .finding strong { color: var(--find-fg); }
+
+  .gap-callout { background: var(--gap-bg); border-left: 4px solid var(--gap-fg); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 20px 0; }
+  .gap-callout p { margin: 0; color: var(--gap-fg); font-size: 13.5px; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 16px 0; }
+  thead th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 8px 12px; border-bottom: 2px solid var(--border); }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--ink); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #fafafa; }
+
+  /* ── Pills ── */
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .pill.critical { background: #fee2e2; color: var(--critical); }
+  .pill.high     { background: #ffedd5; color: var(--high); }
+  .pill.medium   { background: #fef3c7; color: var(--medium); }
+  .pill.low      { background: #dcfce7; color: var(--low); }
+  .pill.core     { background: var(--core-bg); color: var(--core-fg); }
+  .pill.none     { background: var(--light); color: var(--muted); }
+
+  /* ── Score bar ── */
+  .score-wrap { display: flex; align-items: center; gap: 8px; }
+  .score-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; min-width: 60px; }
+  .score-fill  { height: 100%; border-radius: 3px; }
+  .score-num   { font-weight: 700; font-size: 13px; min-width: 20px; text-align: right; }
+
+  /* ── Methodology table ── */
+  .method-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 16px 0; }
+  .method-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--border); }
+  .method-row:last-child { border-bottom: none; }
+  .method-row:nth-child(even) { background: var(--light); }
+  .method-cond { font-size: 13px; color: var(--ink); }
+  .method-pts  { font-size: 13px; font-weight: 700; color: var(--accent); }
+
+  /* ── Charts ── */
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin: 20px 0; align-items: start; }
+  .chart-box { }
+  .chart-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px; }
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* ── Recommendations ── */
+  .rec-list { list-style: none; counter-reset: rec; margin: 16px 0; }
+  .rec-list li { counter-increment: rec; display: flex; gap: 14px; margin-bottom: 14px; }
+  .rec-list li::before { content: counter(rec); display: flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; margin-top: 2px; flex-shrink: 0; }
+  .rec-list li .rec-body { }
+  .rec-list li .rec-title { font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+  .rec-list li .rec-desc  { color: var(--muted); font-size: 13px; }
+
+  /* ── Two-col layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin: 16px 0; }
+
+  /* ── Scenario comparison ── */
+  .scenario-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  /* ── Gap highlight row ── */
+  tr.gap-row td { background: var(--gap-bg) !important; }
+  tr.gap-row td:first-child { border-left: 3px solid var(--critical); }
+
+  /* ── Footer ── */
+  .footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+  @media print {
+    .page { padding: 32px; }
+    .section { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Cover ── -->
+  <div class="cover">
+    <div class="eyebrow">PlanHub · Market Intelligence</div>
+    <h1>HS Trade Hunger Integration Signal Analysis - Sandbox</h1>
+    <div class="subtitle">Network Intelligence signal coverage vs. TAM/GCAS pipeline alignment — April 2026</div>
+    <div class="cover-meta">
+      <div class="item"><div class="label">Prepared</div><div class="value">April 24, 2026</div></div>
+      <div class="item"><div class="label">Data snapshot</div><div class="value">April 2026 (ds_kpi_cbsa_trade_hunger)</div></div>
+      <div class="item"><div class="label">Prepared by</div><div class="value">Arash Rashidi</div></div>
+      <div class="item"><div class="label">Distribution</div><div class="value">Leadership Team</div></div>
+    </div>
+  </div>
+
+  <!-- ── Executive Summary ── -->
+  <div class="section">
+    <div class="section-num">Section 1</div>
+    <div class="section-title">Executive Summary</div>
+    <p>PlanHub's Network Intelligence system monitors trade hunger signals across U.S. metros monthly — identifying markets where subcontractor supply has outpaced project opportunity demand. This report cross-references those signals against the TAM/GCAS ticket pipeline to answer a critical question: <strong>is the pipeline aligned with where demand signals are actually firing?</strong></p>
+    <p>The answer, as of April 2026, is largely no. The NI system detected active hunger signals across <strong>326 unique CBSAs</strong>. The TAM/GCAS pipeline holds <strong>2,379 tickets</strong> — but only <strong>84 of those tickets (3.5%)</strong> are in markets where hunger signals are currently active. The remaining 96.5% of the pipeline has no corresponding demand signal, and <strong>242 markets with active signals have no pipeline presence at all.</strong></p>
+
+    <div class="kpi-strip">
+      <div class="kpi-cell"><div class="num danger">326</div><div class="lbl">CBSAs with active hunger signals this month</div></div>
+      <div class="kpi-cell"><div class="num danger">3.5%</div><div class="lbl">Pipeline–signal overlap rate (84 of 2,379 tickets)</div></div>
+      <div class="kpi-cell"><div class="num danger">242</div><div class="lbl">Signal markets with no pipeline ticket</div></div>
+      <div class="kpi-cell"><div class="num warn">27</div><div class="lbl">Matched tickets now elevated to High or Critical</div></div>
+    </div>
+
+    <div class="finding"><p><strong>The core finding is a coverage misalignment.</strong> NI is detecting trade hunger in markets the pipeline hasn't reached. Of 326 signaling CBSAs, 242 (74%) have no TAM/GCAS ticket. The 84 that do overlap now carry a demand-backed priority score — but closing the 242-market gap is the larger, more urgent opportunity.</p></div>
+
+    <div class="section-title" style="font-size:16px;margin-top:28px;border-bottom:1px solid var(--border);padding-bottom:8px">Recommended Actions</div>
+    <ul class="rec-list" style="margin-top:14px">
+      <li>
+        <div class="rec-body">
+          <div class="rec-title">Close the 242-market coverage gap — this is the primary opportunity</div>
+          <div class="rec-desc">242 CBSAs have active hunger signals but no TAM/GCAS ticket. These are markets where NI is signaling demand but the pipeline hasn't reached. Triaging these for ticket creation — starting with the 37 Critical-tier markets — would more than triple the pipeline's signal-aligned coverage.</div>
+        </div>
+      </li>
+      <li>
+        <div class="rec-body">
+          <div class="rec-title">Action the 27 High and Critical matched tickets immediately</div>
+          <div class="rec-desc">Of the 84 matched tickets, 12 are now Critical and 15 are High — these are markets where demand signals are strongest AND the pipeline already has a presence. This is the highest-confidence, lowest-friction action available right now.</div>
+        </div>
+      </li>
+      <li>
+        <div class="rec-body">
+          <div class="rec-title">Create the 4 core CBSA gap tickets</div>
+          <div class="rec-desc">San Diego (Critical, 26 pts), Sacramento (Critical, 12 pts), San Jose (Critical, 12 pts), and Cincinnati (High, 8 pts) are core PlanHub markets with active signals and no pipeline ticket. Three are Critical-tier — these should be added immediately.</div>
+        </div>
+      </li>
+      <li>
+        <div class="rec-body">
+          <div class="rec-title">Use signal coverage as a pipeline health metric going forward</div>
+          <div class="rec-desc">The 3.5% overlap rate is a baseline. Re-running this analysis monthly and tracking how the overlap rate improves over time gives leadership a concrete measure of how well the pipeline is being driven by demand intelligence vs. other inputs.</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ── Methodology ── -->
+  <div class="section">
+    <div class="section-num">Section 2</div>
+    <div class="section-title">Scoring Methodology</div>
+
+    <p>Each month, the data warehouse produces a CBSA × trade snapshot. A <strong>hunger signal</strong> fires on any row where the number of active subcontractors in a rolling 3-month window exceeds available project opportunities — meaning there is more SC capacity than work to fill it.</p>
+
+    <p>Markets are scored by accumulating points across all trade rows within a CBSA, then applying a multiplier for core markets. The resulting score determines which HubSpot TAM/GCAS ticket to prioritize.</p>
+
+    <div class="two-col" style="margin-top:20px">
+      <div>
+        <div class="chart-label">Point weights per trade row</div>
+        <div class="method-table">
+          <div class="method-row"><span class="method-cond">Core trade &nbsp;·&nbsp; hunger_state = 2 <em>(Very Hungry)</em></span><span class="method-pts">2 pts</span></div>
+          <div class="method-row"><span class="method-cond">Core trade &nbsp;·&nbsp; hunger_state = 1 <em>(Hungry)</em></span><span class="method-pts">1 pt</span></div>
+          <div class="method-row"><span class="method-cond">Non-core trade &nbsp;·&nbsp; any hunger state</span><span class="method-pts">0.5 pts</span></div>
+          <div class="method-row"><span class="method-cond">Core CBSA multiplier applied to base score</span><span class="method-pts">× 3.0</span></div>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">Hunger state is derived from the <code>trade_hunger_ratio</code> field. A ratio above 4.0 is classified as state 2; between 1.0–4.0 as state 1; below 1.0 as balanced (state 0). Non-core trades receive partial credit to surface demand gaps in markets where core-classified trades are not the primary capacity constraint.</p>
+      </div>
+      <div>
+        <div class="chart-label">Priority tiers</div>
+        <div class="method-table">
+          <div class="method-row"><span class="method-cond"><span class="pill critical">Critical</span></span><span class="method-pts">Score ≥ 10</span></div>
+          <div class="method-row"><span class="method-cond"><span class="pill high">High</span></span><span class="method-pts">Score 6 – 9</span></div>
+          <div class="method-row"><span class="method-cond"><span class="pill medium">Medium</span></span><span class="method-pts">Score 3 – 5</span></div>
+          <div class="method-row"><span class="method-cond"><span class="pill low">Low</span></span><span class="method-pts">Score 1 – 2</span></div>
+        </div>
+        <div class="chart-label" style="margin-top:20px">Signal distribution across 272 scored CBSAs</div>
+        <div class="chart-wrap" style="height:170px"><canvas id="donutChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Before & After ── -->
+  <div class="section">
+    <div class="section-num">Section 3</div>
+    <div class="section-title">Pipeline–Signal Coverage Gap</div>
+
+    <p>Crossing the NI hunger signal dataset against the TAM/GCAS pipeline reveals a stark misalignment. The pipeline was built without demand intelligence as an input — resulting in a 3.5% overlap between where tickets exist and where signals are firing. The analysis below quantifies that gap and shows what changes once signals are applied to the tickets that do overlap.</p>
+
+    <!-- Gap visualization -->
+    <div style="display:grid;grid-template-columns:1fr 44px 1fr;align-items:stretch;margin:24px 0">
+      <div style="border:1px solid #e5e7eb;border-radius:10px 0 0 10px;padding:20px 24px;background:#f9fafb">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;margin-bottom:16px">PIPELINE — Before Signal Cross-Reference</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#111827;line-height:1">2,379</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Total TAM/GCAS tickets</div></div>
+          <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#dc2626;line-height:1">0</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Tickets backed by demand signal data</div></div>
+          <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#dc2626;line-height:1">0%</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Signal-aligned pipeline coverage</div></div>
+          <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#9ca3af;line-height:1">—</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">No coverage gap measurement possible</div></div>
+        </div>
+      </div>
+      <div style="background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9ca3af">→</div>
+      <div style="border:2px solid #dc2626;border-radius:0 10px 10px 0;padding:20px 24px;background:#fff5f5">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#dc2626;margin-bottom:16px">SIGNALS — Gap Now Quantified</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#dc2626;line-height:1">3.5%</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Pipeline–signal overlap (84 of 2,379)</div></div>
+          <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#dc2626;line-height:1">242</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Signal markets with no ticket at all</div></div>
+          <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#ea580c;line-height:1">27</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Matched tickets elevated High or Critical</div></div>
+          <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#16a34a;line-height:1">84</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Tickets now carrying a hunger score</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="finding"><p><strong>3.5% overlap is the headline.</strong> NI signals are firing in 326 markets — the pipeline touches only 84 of them. The 242 uncovered signal markets represent the primary growth opportunity. Among the 84 that do match, scoring immediately surfaces 12 Critical markets (Omaha, Appleton, St. Louis, Colorado Springs, Bowling Green, Cape Coral, Philadelphia, Slidell, Oklahoma City, Punta Gorda, Grand Rapids, and Shreveport) and 15 High markets — but these are the easy wins. The bigger work is closing the 242-market gap.</p></div>
+
+    <div class="chart-label" style="margin-top:24px">Core CBSA scoring results</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Core CBSA</th>
+          <th>Score</th>
+          <th>Priority</th>
+          <th>Pipeline Status</th>
+        </tr>
+      </thead>
+      <tbody id="beforeAfterTable"></tbody>
+    </table>
+
+    <div class="gap-callout" style="margin-top:16px"><p><strong>4 core CBSA gaps to fill:</strong> San Diego (Critical, 26 pts), Sacramento (Critical, 12 pts), San Jose (Critical, 12 pts), and Cincinnati (High, 8 pts) score above zero but have no TAM/GCAS ticket. These should be created immediately — three are Critical-tier.</p></div>
+  </div>
+
+  <!-- ── Survivorship Bias ── -->
+  <div class="section" style="background:#fffceb;border:1px solid #fde68a;border-radius:12px;padding:30px 36px;margin-bottom:52px">
+    <div class="section-num">Conceptual Framework</div>
+    <div class="section-title" style="border-color:#d97706">The Conceptual Framework — Why Non-Core Trade Signals Matter</div>
+    <p>In WWII, Abraham Wald was asked to help the military decide where to reinforce bomber aircraft. Analysts studied planes that returned from missions and found bullet holes concentrated on the wings and fuselage — so they planned to armor those areas. Wald pointed out the critical flaw: <strong>you are only seeing the planes that survived.</strong> Aircraft hit in the engine never returned to be studied, so those areas showed zero damage. The absence of bullet holes on the engine was not evidence of safety — it was evidence that those hits were fatal. The right answer was to reinforce where you saw <em>no</em> damage.</p>
+    <p><strong>This is the insight that shaped our scoring design.</strong> A model measuring only core-trade hunger would treat Atlanta, San Francisco, Miami, Nashville, and New York as balanced markets — when those cities have meaningful supply-demand gaps across non-core trades that an incomplete model never sees. The absence of a core-trade signal is not evidence of a healthy market. It means we are not measuring all the right dimensions. By including non-core trade signals, our methodology captures the full picture of where SC capacity is falling short of project demand.</p>
+
+    <div style="margin:28px 0 16px">
+      <svg viewBox="0 0 960 408" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:380px">
+        <defs>
+          <marker id="arrRed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0,8 3,0 6" fill="#dc2626"/>
+          </marker>
+          <marker id="arrBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0,8 3,0 6" fill="#1d4ed8"/>
+          </marker>
+        </defs>
+
+        <!-- ── Upper wing ── -->
+        <polygon points="408,168 560,153 595,88 545,60 465,108 395,162" fill="#d8d8d8" stroke="#9ca3af" stroke-width="1.5"/>
+        <!-- ── Lower wing ── -->
+        <polygon points="408,232 560,247 595,312 545,340 465,292 395,238" fill="#d8d8d8" stroke="#9ca3af" stroke-width="1.5"/>
+        <!-- ── Fuselage ── -->
+        <ellipse cx="480" cy="200" rx="265" ry="32" fill="#e2e2e2" stroke="#9ca3af" stroke-width="2"/>
+        <!-- ── Cockpit dome ── -->
+        <ellipse cx="650" cy="191" rx="48" ry="20" fill="#93c5fd" stroke="#60a5c8" stroke-width="1.5"/>
+        <!-- ── Nose ── -->
+        <path d="M 745,200 Q 758,193 770,200 Q 758,207 745,200 Z" fill="#c8c8c8" stroke="#9ca3af" stroke-width="1.5"/>
+        <!-- ── Tail fin ── -->
+        <polygon points="232,200 214,168 230,172 248,196 248,204 230,228 214,232" fill="#d0d0d0" stroke="#9ca3af" stroke-width="1.5"/>
+        <!-- ── Horizontal stabilizers ── -->
+        <polygon points="243,174 216,152 228,154 258,176" fill="#d8d8d8" stroke="#9ca3af" stroke-width="1.5"/>
+        <polygon points="243,226 216,248 228,246 258,224" fill="#d8d8d8" stroke="#9ca3af" stroke-width="1.5"/>
+
+        <!-- ── Engine nacelles ── -->
+        <circle cx="492" cy="142" r="15" fill="#b0b0b0" stroke="#6b7280" stroke-width="2"/>
+        <circle cx="558" cy="104" r="12" fill="#b0b0b0" stroke="#6b7280" stroke-width="2"/>
+        <circle cx="492" cy="258" r="15" fill="#b0b0b0" stroke="#6b7280" stroke-width="2"/>
+        <circle cx="558" cy="296" r="12" fill="#b0b0b0" stroke="#6b7280" stroke-width="2"/>
+
+        <!-- ── Bullet holes on upper wing ── -->
+        <circle cx="465" cy="130" r="5"   fill="#7f1d1d" opacity="0.90"/>
+        <circle cx="492" cy="120" r="4"   fill="#991b1b" opacity="0.85"/>
+        <circle cx="520" cy="108" r="5"   fill="#7f1d1d" opacity="0.90"/>
+        <circle cx="440" cy="148" r="4"   fill="#7f1d1d" opacity="0.85"/>
+        <circle cx="476" cy="116" r="3.5" fill="#991b1b" opacity="0.80"/>
+        <!-- ── Bullet holes on fuselage ── -->
+        <circle cx="392" cy="198" r="4.5" fill="#7f1d1d" opacity="0.90"/>
+        <circle cx="438" cy="208" r="4"   fill="#991b1b" opacity="0.85"/>
+        <circle cx="510" cy="196" r="5"   fill="#7f1d1d" opacity="0.90"/>
+        <circle cx="570" cy="192" r="4"   fill="#991b1b" opacity="0.85"/>
+        <circle cx="612" cy="204" r="3.5" fill="#7f1d1d" opacity="0.80"/>
+        <!-- ── Bullet holes on lower wing ── -->
+        <circle cx="468" cy="270" r="4.5" fill="#7f1d1d" opacity="0.90"/>
+        <circle cx="500" cy="280" r="4"   fill="#991b1b" opacity="0.85"/>
+        <circle cx="434" cy="254" r="5"   fill="#7f1d1d" opacity="0.90"/>
+
+        <!-- ── Dashed rings — engines with NO damage ── -->
+        <circle cx="558" cy="104" r="22" fill="none" stroke="#1d4ed8" stroke-width="2.5" stroke-dasharray="5,3" opacity="0.9"/>
+        <circle cx="558" cy="296" r="22" fill="none" stroke="#1d4ed8" stroke-width="2.5" stroke-dasharray="5,3" opacity="0.9"/>
+
+        <!-- ── LEFT ANNOTATION 1: Visible damage ── -->
+        <line x1="198" y1="106" x2="458" y2="124" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrRed)"/>
+        <rect x="8" y="52" width="188" height="76" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+        <text x="18" y="71"  font-family="Inter,-apple-system,sans-serif" font-size="10.5" font-weight="700" fill="#dc2626">VISIBLE DAMAGE</text>
+        <text x="18" y="88"  font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#7f1d1d">Bullet holes on wings &amp;</text>
+        <text x="18" y="103" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#7f1d1d">fuselage — planes that</text>
+        <text x="18" y="118" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#7f1d1d">survived and came back</text>
+
+        <!-- ── LEFT ANNOTATION 2: = Core signals ── -->
+        <line x1="196" y1="200" x2="386" y2="200" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrRed)"/>
+        <rect x="8" y="162" width="188" height="76" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+        <text x="18" y="181" font-family="Inter,-apple-system,sans-serif" font-size="10.5" font-weight="700" fill="#dc2626">= CORE TRADE SIGNALS</text>
+        <text x="18" y="198" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#7f1d1d">What the baseline model</text>
+        <text x="18" y="213" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#7f1d1d">counts — visible, scored,</text>
+        <text x="18" y="228" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#7f1d1d">and actioned</text>
+
+        <!-- ── RIGHT ANNOTATION 1: No holes on engines ── -->
+        <line x1="762" y1="108" x2="582" y2="106" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrBlue)"/>
+        <rect x="764" y="52" width="188" height="76" rx="6" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.5"/>
+        <text x="774" y="71"  font-family="Inter,-apple-system,sans-serif" font-size="10.5" font-weight="700" fill="#1d4ed8">NO HOLES ON ENGINES</text>
+        <text x="774" y="88"  font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#1e3a8a">Those hits were fatal —</text>
+        <text x="774" y="103" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#1e3a8a">those planes never</text>
+        <text x="774" y="118" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#1e3a8a">returned to be studied</text>
+
+        <!-- ── RIGHT ANNOTATION 2: = Non-core signals ── -->
+        <line x1="762" y1="290" x2="582" y2="294" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrBlue)"/>
+        <rect x="764" y="240" width="188" height="76" rx="6" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.5"/>
+        <text x="774" y="259" font-family="Inter,-apple-system,sans-serif" font-size="10.5" font-weight="700" fill="#1d4ed8">= NON-CORE SIGNALS</text>
+        <text x="774" y="276" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#1e3a8a">Invisible to baseline:</text>
+        <text x="774" y="291" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#1e3a8a">Atlanta, SF, Miami, NYC</text>
+        <text x="774" y="306" font-family="Inter,-apple-system,sans-serif" font-size="10" fill="#1e3a8a">all score 0 in model</text>
+
+        <!-- ── Bottom insight banner ── -->
+        <rect x="228" y="358" width="504" height="32" rx="8" fill="#111827"/>
+        <text x="480" y="379" font-family="Inter,-apple-system,sans-serif" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">Wald: armor the engines, not the wings  ·  Our model: non-core signals capture the blind spot</text>
+      </svg>
+    </div>
+
+    <!-- ── Analogy mapping ── -->
+    <div style="display:grid;grid-template-columns:1fr 36px 1fr;gap:12px;align-items:center;margin-top:4px">
+      <div style="border:1px solid #fcd34d;border-radius:8px;padding:16px 18px;background:#fffbeb">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#92400e;margin-bottom:12px">WWII Context</div>
+        <div style="font-size:13px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start">
+          <span style="color:#dc2626;font-weight:700;flex-shrink:0;margin-top:2px">●</span>
+          <span><strong>Bullet holes on wings &amp; fuselage</strong> — visible damage on planes that survived and returned</span>
+        </div>
+        <div style="font-size:13px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start">
+          <span style="color:#1d4ed8;font-weight:700;flex-shrink:0;margin-top:2px">○</span>
+          <span><strong>No holes on engines</strong> — those planes were shot down; the data never came back to be counted</span>
+        </div>
+        <div style="font-size:13px;display:flex;gap:10px;align-items:flex-start">
+          <span style="color:#059669;font-weight:700;flex-shrink:0;margin-top:2px">→</span>
+          <span><strong>Wald's insight:</strong> reinforce the engines — not the bullet-riddled wings</span>
+        </div>
+      </div>
+
+      <div style="text-align:center;font-size:26px;color:#9ca3af;font-weight:300;line-height:1">→</div>
+
+      <div style="border:1px solid #bfdbfe;border-radius:8px;padding:16px 18px;background:#eff6ff">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#1e40af;margin-bottom:12px">Trade Hunger Model</div>
+        <div style="font-size:13px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start">
+          <span style="color:#dc2626;font-weight:700;flex-shrink:0;margin-top:2px">●</span>
+          <span><strong>Core trade signals</strong> — what the baseline counts and scores in HubSpot today</span>
+        </div>
+        <div style="font-size:13px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start">
+          <span style="color:#1d4ed8;font-weight:700;flex-shrink:0;margin-top:2px">○</span>
+          <span><strong>Non-core trade hunger in large CBSAs</strong> — invisible to baseline; Atlanta, SF, Miami, NYC all score zero despite real demand gaps</span>
+        </div>
+        <div style="font-size:13px;display:flex;gap:10px;align-items:flex-start">
+          <span style="color:#059669;font-weight:700;flex-shrink:0;margin-top:2px">→</span>
+          <span><strong>Our model:</strong> includes non-core trade signals — surfaces all 22 core CBSAs, including Atlanta, SF, Miami, NYC</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Methodology note ── -->
+  <div style="background:#f9fafb;border:1px solid var(--border);border-radius:10px;padding:18px 24px;margin-bottom:52px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px">Methodology Note</div>
+    <p style="margin:0;font-size:13px;color:#374151">Non-core trades receive partial credit by design — not as a compromise, but to ensure broad market coverage without over-indexing on narrow trade classifications. This prevents the survivorship bias described above from hiding demand gaps in core markets where non-core trades dominate the capacity shortfall. Multiple scoring configurations were evaluated during development. Full scenario comparison is available on request.</p>
+  </div>
+
+  <!-- ── Matched signals ── -->
+  <div class="section">
+    <div class="section-num">Section 4</div>
+    <div class="section-title">Matched Signals — Under Adopted Methodology</div>
+
+    <p>Applying our scoring methodology across the 2,379-ticket TAM/GCAS pipeline, 69 CBSAs matched and scored above zero. Of these, 38 have at least one core-trade hungry row; 31 score entirely from non-core trade signals. CBSAs scoring from non-core trades only are marked with a <span class="pill core" style="font-size:10px">Core</span> badge where applicable and show 0 in the core trades column — their scores reflect the breadth of non-core demand gaps across the market.</p>
+
+    <table>
+      <thead><tr><th>CBSA</th><th>Score</th><th>Priority</th><th>Core CBSA</th><th>Core trades</th><th>HS Tickets</th><th>Dominant trade</th></tr></thead>
+      <tbody id="signalsTable"></tbody>
+    </table>
+
+    <div class="finding"><p><strong>Pattern:</strong> Demolition &amp; Site Construction and Electrical &amp; Low Voltage appear as the dominant hungry trade in the majority of markets. This may reflect a structural gap in SC recruitment for these categories — worth surfacing to the Market Expansion team as a targeted recruitment initiative alongside the GCAS outreach.</p></div>
+  </div>
+
+  <!-- ── Production Insights ── -->
+  <div class="section">
+    <div class="section-num">Section 5</div>
+    <div class="section-title">Production Insights — What We're Looking to Answer</div>
+
+    <p>This analysis was run against a sandbox environment. The methodology is validated — what we don't yet know is what the production numbers look like. Below are the specific business questions this integration is designed to answer once deployed against the full production pipeline.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px">
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:20px 24px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">Pipeline Alignment</div>
+        <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:8px">What is the true overlap between NI hunger signals and our full production pipeline?</div>
+        <p style="font-size:13px;color:var(--muted);margin:0">Sandbox showed 3.5%. Production will tell us whether that gap is consistent or whether the sandbox sample skewed the picture. This becomes our baseline pipeline health metric.</p>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:20px 24px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">Coverage Gap</div>
+        <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:8px">How many markets are we missing — signals firing with no ticket in the pipeline?</div>
+        <p style="font-size:13px;color:var(--muted);margin:0">In sandbox, 242 signal markets had no pipeline presence. In production, this number may be significantly larger — and represents the most actionable outreach opportunity we can identify from data.</p>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:20px 24px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">Priority Distribution</div>
+        <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:8px">Of the tickets that do match, how many surface as High or Critical priority?</div>
+        <p style="font-size:13px;color:var(--muted);margin:0">Sandbox showed 27 of 84 matched tickets at High or Critical (32%). Does production hold that ratio, or does a broader pipeline surface more — or fewer — genuinely urgent markets?</p>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:20px 24px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">Pipeline Quality</div>
+        <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:8px">Are there tickets in the pipeline for markets with no demand signal backing them up?</div>
+        <p style="font-size:13px;color:var(--muted);margin:0">96.5% of sandbox tickets had no corresponding signal. Understanding whether those tickets represent genuine opportunities — or pipeline noise — is a direct input into how we qualify and prioritize outreach.</p>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:20px 24px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">Trend & Repeatability</div>
+        <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:8px">How does signal coverage as a pipeline health metric trend month over month?</div>
+        <p style="font-size:13px;color:var(--muted);margin:0">Running this analysis monthly gives us a time series: is the overlap rate improving as the team acts on signals? Are new markets entering the Critical tier? This turns a one-time snapshot into a continuous feedback loop.</p>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:20px 24px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">Trade-Level Intelligence</div>
+        <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:8px">Which specific trades are driving the most hunger signals — and are we recruiting for them?</div>
+        <p style="font-size:13px;color:var(--muted);margin:0">Sandbox surfaced Demolition & Site Construction and Electrical & Low Voltage as dominant hungry trades. Production will validate whether these are systematic gaps or regional patterns — directly informing SC recruitment prioritization.</p>
+      </div>
+
+    </div>
+
+    <div class="finding" style="margin-top:24px"><p><strong>Next step:</strong> Deploy the scoring and sync scripts against the production TAM/GCAS pipeline. The methodology is ready — the production run will replace every sandbox number in this report with the real picture and give the team a fully data-backed view of where to focus.</p></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>PlanHub · Market Intelligence · April 2026</span>
+    <span>Source: ds_kpi_cbsa_trade_hunger · Pipeline: TAM/GCAS (6228543)</span>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+const priorityColor = { Critical:"#dc2626", High:"#ea580c", Medium:"#d97706", Low:"#16a34a" };
+
+// ── Core CBSA before/after data ───────────────────────────────────────────────
+const coreBeforeAfter = [
+  { name:"San Diego-Chula Vista-Carlsbad, CA",          bs:12, bp:"Critical", as:26, ap:"Critical", ticket:false },
+  { name:"Philadelphia-Camden-Wilmington, PA-NJ-DE-MD", bs:3,  bp:"Medium",   as:14, ap:"Critical", ticket:true  },
+  { name:"Sacramento-Roseville-Folsom, CA",             bs:3,  bp:"Medium",   as:12, ap:"Critical", ticket:false },
+  { name:"San Jose-Sunnyvale-Santa Clara, CA",          bs:0,  bp:null,       as:12, ap:"Critical", ticket:false },
+  { name:"Charlotte-Concord-Gastonia, NC-SC",           bs:6,  bp:"High",     as:9,  ap:"High",     ticket:true  },
+  { name:"Cincinnati, OH-KY-IN",                        bs:0,  bp:null,       as:8,  ap:"High",     ticket:false },
+  { name:"Atlanta-Sandy Springs-Roswell, GA",           bs:0,  bp:null,       as:8,  ap:"High",     ticket:true  },
+  { name:"San Francisco-Oakland-Fremont, CA",           bs:0,  bp:null,       as:6,  ap:"High",     ticket:true  },
+  { name:"Miami-Fort Lauderdale-West Palm Beach, FL",   bs:0,  bp:null,       as:6,  ap:"High",     ticket:true  },
+  { name:"Nashville-Davidson--Murfreesboro, TN",        bs:0,  bp:null,       as:5,  ap:"Medium",   ticket:true  },
+  { name:"Tampa-St. Petersburg-Clearwater, FL",         bs:0,  bp:null,       as:5,  ap:"Medium",   ticket:true  },
+  { name:"New York-Newark-Jersey City, NY-NJ",          bs:0,  bp:null,       as:5,  ap:"Medium",   ticket:true  },
+  { name:"Columbus, OH",                                bs:0,  bp:null,       as:5,  ap:"Medium",   ticket:true  },
+  { name:"San Antonio-New Braunfels, TX",               bs:0,  bp:null,       as:5,  ap:"Medium",   ticket:true  },
+  { name:"Cleveland, OH",                               bs:0,  bp:null,       as:5,  ap:"Medium",   ticket:true  },
+  { name:"Los Angeles-Long Beach-Anaheim, CA",          bs:0,  bp:null,       as:3,  ap:"Medium",   ticket:true  },
+  { name:"Austin-Round Rock-San Marcos, TX",            bs:0,  bp:null,       as:3,  ap:"Medium",   ticket:true  },
+  { name:"Raleigh-Cary, NC",                            bs:0,  bp:null,       as:2,  ap:"Low",      ticket:true  },
+  { name:"Riverside-San Bernardino-Ontario, CA",        bs:0,  bp:null,       as:2,  ap:"Low",      ticket:true  },
+  { name:"Dallas-Fort Worth-Arlington, TX",             bs:0,  bp:null,       as:2,  ap:"Low",      ticket:true  },
+  { name:"Pittsburgh, PA",                              bs:0,  bp:null,       as:2,  ap:"Low",      ticket:true  },
+  { name:"Jacksonville, FL",                            bs:0,  bp:null,       as:2,  ap:"Low",      ticket:true  },
+];
+
+const tbody1 = document.getElementById("beforeAfterTable");
+coreBeforeAfter.forEach(r => {
+  const tr = document.createElement("tr");
+  if (!r.ticket) tr.className = "gap-row";
+  const color = priorityColor[r.ap];
+  const pct = (r.as / 26 * 100).toFixed(0);
+  const pri = `<span class="pill ${r.ap.toLowerCase()}">${r.ap}</span>`;
+  const status = r.ticket
+    ? `<span style="color:var(--low);font-weight:600">✓ Active ticket</span>`
+    : `<span style="color:var(--critical);font-weight:700">✗ Gap — create ticket</span>`;
+
+  tr.innerHTML = `<td>${r.name}</td>
+    <td>
+      <div class="score-wrap">
+        <div class="score-track"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div>
+        <span class="score-num" style="color:${color}">${r.as}</span>
+      </div>
+    </td>
+    <td>${pri}</td>
+    <td>${status}</td>`;
+  tbody1.appendChild(tr);
+});
+
+// ── Matched signals data (69 CBSAs, scores from adopted formula dry-run) ─────
+const signals = [
+  { name:"Omaha, NE-IA",                                    score:22.5,priority:"Critical",core:false,trades:9, tickets:1, top:"Roofing, Thermal and Moisture Protection" },
+  { name:"Appleton, WI",                                    score:20,  priority:"Critical",core:false,trades:7, tickets:1, top:"Electrical and Low Voltage" },
+  { name:"St. Louis, MO-IL",                                score:17.5,priority:"Critical",core:false,trades:6, tickets:1, top:"HVAC" },
+  { name:"Colorado Springs, CO",                            score:16.5,priority:"Critical",core:false,trades:7, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Bowling Green, KY",                               score:16.5,priority:"Critical",core:false,trades:7, tickets:1, top:"Electrical and Low Voltage" },
+  { name:"Cape Coral-Fort Myers, FL",                       score:16.5,priority:"Critical",core:false,trades:6, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Philadelphia-Camden-Wilmington, PA-NJ-DE-MD",     score:14,  priority:"Critical",core:true, trades:1, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Slidell-Mandeville-Covington, LA",                score:13.5,priority:"Critical",core:false,trades:5, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Oklahoma City, OK",                               score:13,  priority:"Critical",core:false,trades:6, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Punta Gorda, FL",                                 score:13,  priority:"Critical",core:false,trades:5, tickets:1, top:"Metal and Steel Construction" },
+  { name:"Grand Rapids-Wyoming-Kentwood, MI",               score:13,  priority:"Critical",core:false,trades:6, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Shreveport-Bossier City, LA",                     score:11,  priority:"Critical",core:false,trades:6, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Amarillo, TX",                                    score:9,   priority:"High",    core:false,trades:4, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Youngstown-Warren, OH",                           score:9,   priority:"High",    core:false,trades:5, tickets:1, top:"Electrical and Low Voltage" },
+  { name:"Charlotte-Concord-Gastonia, NC-SC",               score:9,   priority:"High",    core:true, trades:2, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Cedar Rapids, IA",                                score:8.5, priority:"High",    core:false,trades:3, tickets:1, top:"Electrical and Low Voltage" },
+  { name:"Kansas City, MO-KS",                              score:8,   priority:"High",    core:false,trades:3, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Wichita, KS",                                     score:8,   priority:"High",    core:false,trades:4, tickets:1, top:"Electrical and Low Voltage" },
+  { name:"Atlanta-Sandy Springs-Roswell, GA",               score:8,   priority:"High",    core:true, trades:0, tickets:1, top:"Other" },
+  { name:"Cookeville, TN",                                  score:7.5, priority:"High",    core:false,trades:4, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Albuquerque, NM",                                 score:7.5, priority:"High",    core:false,trades:4, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Milwaukee-Waukesha, WI",                          score:7.5, priority:"High",    core:false,trades:3, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Portland-Vancouver-Hillsboro, OR-WA",             score:7,   priority:"High",    core:false,trades:3, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Louisville/Jefferson County, KY-IN",              score:7,   priority:"High",    core:false,trades:3, tickets:1, top:"Metal and Steel Construction" },
+  { name:"San Francisco-Oakland-Fremont, CA",               score:6,   priority:"High",    core:true, trades:0, tickets:1, top:"Preconstruction, Planning and Supervision" },
+  { name:"Miami-Fort Lauderdale-West Palm Beach, FL",        score:6,   priority:"High",    core:true, trades:0, tickets:1, top:"Other" },
+  { name:"Jackson, MI",                                     score:6,   priority:"High",    core:false,trades:3, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Nashville-Davidson--Murfreesboro--Franklin, TN",  score:5,   priority:"Medium",  core:true, trades:0, tickets:1, top:"Other" },
+  { name:"Tampa-St. Petersburg-Clearwater, FL",             score:5,   priority:"Medium",  core:true, trades:0, tickets:1, top:"Other" },
+  { name:"New York-Newark-Jersey City, NY-NJ",              score:5,   priority:"Medium",  core:true, trades:0, tickets:1, top:"Other" },
+  { name:"Columbus, OH",                                    score:5,   priority:"Medium",  core:true, trades:0, tickets:1, top:"Conveying Systems" },
+  { name:"San Antonio-New Braunfels, TX",                   score:5,   priority:"Medium",  core:true, trades:0, tickets:1, top:"Special Construction" },
+  { name:"Cleveland, OH",                                   score:5,   priority:"Medium",  core:true, trades:0, tickets:1, top:"Other" },
+  { name:"Phoenix-Mesa-Chandler, AZ",                       score:5,   priority:"Medium",  core:false,trades:1, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Washington-Arlington-Alexandria, DC-VA-MD-WV",    score:4.5, priority:"Medium",  core:false,trades:0, tickets:1, top:"Specialties" },
+  { name:"Minneapolis-St. Paul-Bloomington, MN-WI",         score:4,   priority:"Medium",  core:false,trades:1, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Altoona, PA",                                     score:4,   priority:"Medium",  core:false,trades:2, tickets:1, top:"Electrical and Low Voltage" },
+  { name:"Morristown, TN",                                  score:4,   priority:"Medium",  core:false,trades:2, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Baltimore-Columbia-Towson, MD",                   score:3.5, priority:"Medium",  core:false,trades:0, tickets:1, top:"Special Construction" },
+  { name:"Springfield, MO",                                 score:3.5, priority:"Medium",  core:false,trades:2, tickets:1, top:"Metal and Steel Construction" },
+  { name:"Syracuse, NY",                                    score:3.5, priority:"Medium",  core:false,trades:1, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Austin-Round Rock-San Marcos, TX",                score:3,   priority:"Medium",  core:true, trades:0, tickets:1, top:"Conveying Systems" },
+  { name:"Los Angeles-Long Beach-Anaheim, CA",              score:3,   priority:"Medium",  core:true, trades:0, tickets:1, top:"Other" },
+  { name:"Scranton--Wilkes-Barre, PA",                      score:3,   priority:"Medium",  core:false,trades:1, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Denver-Aurora-Centennial, CO",                    score:3,   priority:"Medium",  core:false,trades:0, tickets:1, top:"Other" },
+  { name:"Monroe, LA",                                      score:3,   priority:"Medium",  core:false,trades:1, tickets:1, top:"Electrical and Low Voltage" },
+  { name:"Richmond, VA",                                    score:2.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Décor and Furnishings" },
+  { name:"Raleigh-Cary, NC",                                score:2,   priority:"Low",     core:true, trades:0, tickets:1, top:"Décor and Furnishings" },
+  { name:"Riverside-San Bernardino-Ontario, CA",            score:2,   priority:"Low",     core:true, trades:0, tickets:1, top:"Other" },
+  { name:"Indianapolis-Carmel-Greenwood, IN",               score:2,   priority:"Low",     core:false,trades:0, tickets:1, top:"Special Construction" },
+  { name:"Lakeland-Winter Haven, FL",                       score:2,   priority:"Low",     core:false,trades:0, tickets:1, top:"Special Construction" },
+  { name:"Auburn, IN",                                      score:2,   priority:"Low",     core:false,trades:1, tickets:1, top:"Demolition and Site Construction" },
+  { name:"Dallas-Fort Worth-Arlington, TX",                 score:2,   priority:"Low",     core:true, trades:0, tickets:1, top:"Other" },
+  { name:"Pittsburgh, PA",                                  score:2,   priority:"Low",     core:true, trades:0, tickets:1, top:"Special Construction" },
+  { name:"Jacksonville, FL",                                score:2,   priority:"Low",     core:true, trades:0, tickets:1, top:"Special Construction" },
+  { name:"Tyler, TX",                                       score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Exterior Improvements and Landscaping" },
+  { name:"Atlantic City-Hammonton, NJ",                     score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Exterior Siding and Masonry" },
+  { name:"Beaumont-Port Arthur, TX",                        score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Preconstruction, Planning and Supervision" },
+  { name:"Pensacola-Ferry Pass-Brent, FL",                  score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Other" },
+  { name:"Victoria, TX",                                    score:1.5, priority:"Low",     core:false,trades:1, tickets:1, top:"Concrete Construction" },
+  { name:"Toledo, OH",                                      score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Exterior Siding and Masonry" },
+  { name:"Waco, TX",                                        score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Preconstruction, Planning and Supervision" },
+  { name:"Greenville-Anderson-Greer, SC",                   score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Special Construction" },
+  { name:"Hartford-West Hartford-East Hartford, CT",        score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Exterior Improvements and Landscaping" },
+  { name:"Bridgeport-Stamford-Danbury, CT",                 score:1.5, priority:"Low",     core:false,trades:0, tickets:1, top:"Exterior Siding and Masonry" },
+  { name:"Detroit-Warren-Dearborn, MI",                     score:1,   priority:"Low",     core:false,trades:0, tickets:1, top:"Special Construction" },
+  { name:"South Bend-Mishawaka, IN-MI",                     score:1,   priority:"Low",     core:false,trades:0, tickets:1, top:"Cleaning and Construction Maintenance" },
+  { name:"Boston-Cambridge-Newton, MA-NH",                  score:1,   priority:"Low",     core:false,trades:0, tickets:1, top:"Exterior Improvements and Landscaping" },
+  { name:"Greensboro-High Point, NC",                       score:1,   priority:"Low",     core:false,trades:0, tickets:1, top:"Décor and Furnishings" },
+];
+
+signals.sort((a,b) => b.score - a.score);
+const tbody2 = document.getElementById("signalsTable");
+const maxScore = signals[0].score;
+signals.forEach(s => {
+  const tr = document.createElement("tr");
+  const color = priorityColor[s.priority];
+  const pct = (s.score / maxScore * 100).toFixed(0);
+  tr.innerHTML = `
+    <td>${s.name}${s.core?` <span class="pill core" style="font-size:10px;vertical-align:middle">Core</span>`:''}</td>
+    <td>
+      <div class="score-wrap">
+        <div class="score-track"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div>
+        <span class="score-num" style="color:${color}">${s.score}</span>
+      </div>
+    </td>
+    <td><span class="pill ${s.priority.toLowerCase()}">${s.priority}</span></td>
+    <td>${s.core?`<span class="pill core">YES</span>`:`<span style="color:#d1d5db">—</span>`}</td>
+    <td style="color:#6b7280;text-align:center">${s.trades}</td>
+    <td style="text-align:center">
+      <span style="display:inline-flex;align-items:center;gap:4px;color:var(--low);font-weight:600;font-size:12px">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+          <rect x="1" y="3" width="14" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M5 3V1.5M11 3V1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M1 7h14" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        ${s.tickets}
+      </span>
+    </td>
+    <td style="color:#6b7280;font-size:12px">${s.top}</td>`;
+  tbody2.appendChild(tr);
+});
+
+// ── Donut chart ───────────────────────────────────────────────────────────────
+new Chart(document.getElementById("donutChart"), {
+  type: "doughnut",
+  data: {
+    labels: ["Critical (37)", "High (32)", "Medium (62)", "Low (141)"],
+    datasets: [{ data:[37,32,62,141], backgroundColor:["#dc2626","#ea580c","#d97706","#16a34a"], borderWidth:2, borderColor:"#fff", hoverOffset:4 }]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins: {
+      legend:{ position:"right", labels:{ color:"#6b7280", font:{size:11}, padding:10, boxWidth:12 } },
+      tooltip:{ callbacks:{ label: ctx=>`${ctx.label}: ${((ctx.parsed/272)*100).toFixed(1)}%` } }
+    }
+  }
+});
+
+</script>
+</body>
+</html>
